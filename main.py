@@ -1,10 +1,13 @@
 import os
 import time
 import json
+import datetime
 
 '''Run redshift, and slowly fade it into the next light
 Use json for setting up times
-One json object contains time - hour:minute, hue - 1100-5000k, brightness - 0.0-1.0'''
+One json object contains time - hour:minute, hue - 1100-5000k, brightness - 0.0-1.0
+Current issue is how can we read actual time from .json, to match either a string, or datetime structure
+Also read all the times and manage that'''
 
 # DISPLAY=:0.0
 # Get sections of time with their color and brightness
@@ -18,10 +21,8 @@ def parseJson(path: str):
 
     # Check how to read from json when you have more objects, for text config this is pointless
     for key in data:
-        value = data[key]
-
-    sections.append(
-        tuple([data['time'], data['color'], data['brightness']]))
+        sections.append(
+            tuple([data[key]['time'], data[key]['color'], data[key]['brightness']]))
     f.close()
 
     return sections
@@ -49,25 +50,43 @@ def changeColorBrightness(color: int, brightness: float):
 
 
 if __name__ == "__main__":
-    currentTime = time.time()
-    currentColor: int = 5500
-    currentBrightness: float = 1.0
+    color: int = 5500
+    brightness: float = 1.0
 
-    [targetTime, targetColor, targetBrightness] = parseJson("./config.json")
+    section = parseJson("./config.json")
+    [_targetTime, _targetColor, _targetBrightness] = [], [], []
+    for item, key in section:
+        _targetTime.append(item["time"])
+        _targetColor.append(item["color"])
+        _targetBrightness.append(item["brightness"])
+
+    print(_targetTime)
+
+    [targetTime, targetColor, targetBrightness] = section[4][0], section[4][1], section[4][2]
+
+    # For debug purposes
+    color = 3500
+    brightness = 0.55
 
     [colorDiff, brightnessDiff] = calculateChange(
-        targetColor, targetBrightness, currentColor, currentBrightness)
-
-    nextColor = currentColor
-    nextBrightness = currentBrightness
+        targetColor, targetBrightness, color, brightness)
 
     while True:
-        if ((targetTime+3600) != time.time):
+        timeToChange = (datetime.datetime.strptime(targetTime, '%H:%M') +
+                        datetime.timedelta(minutes=2)).time()
+        currentTime = datetime.datetime.now().strftime("%H:%M:%S")
+        print(f'{timeToChange}, {currentTime}')
+        if (timeToChange != time.time()):
+            print("Not the right time. Sleeping 60s...")
             time.sleep(30)
             continue
 
-        nextColor += colorDiff
-        nextBrightness += brightnessDiff
+        for x in range(10):
+            print(
+                f'Correct time. Changing color {color} and brightness {brightness}...')
+            color += colorDiff
+            brightness += brightnessDiff
 
-        changeColorBrightness(nextColor, nextBrightness)
-        time.sleep(20)
+            changeColorBrightness(color, brightness)
+            print(f'Changes left {10-x}. Sleeping...')
+            time.sleep(60)

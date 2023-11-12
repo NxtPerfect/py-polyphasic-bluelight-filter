@@ -1,0 +1,3 @@
+- [ ] ensure correct time isn't missed
+- [ ] properly read all the sections from json
+- [ ] what should the program do if time is missed or it's run in between
