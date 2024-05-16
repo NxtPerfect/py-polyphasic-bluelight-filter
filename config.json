@@ -5,7 +5,7 @@
     "brightness": 1.0
   },
   "2": {
-    "time": "15:30",
+    "time": "15:00",
     "color": 1100,
     "brightness": 0.5
   },
@@ -15,12 +15,12 @@
     "brightness": 1.0
   },
   "4": {
-    "time": "22:00",
-    "color": 3500,
+    "time": "20:00",
+    "color": 4000,
     "brightness": 0.8
   },
   "5": {
-    "time": "23:00",
+    "time": "23:30",
     "color": 1100,
     "brightness": 0.5
   }
