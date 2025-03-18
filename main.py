@@ -1,80 +1,77 @@
 #!/usr/bin/env python3
 from os import system
+from sys import argv
 import time
-import json
 from datetime import datetime
-from collections import defaultdict
 
 # DISPLAY=:0.0
 # Get sections of time with their color and brightness
 
-BLEND_TIME = 60
-JSON_PATH = "./config.json"
+BLEND_TIME = 120
+SECOND = 1000
 
 def main():
-    print("Parsing json")
-    sections = parseJson(JSON_PATH)
-    print("Getting current time")
-    currentTime = getCurrentTime()
-    print("Changing temp and brightness")
-    changeTempAndBrightness(currentTime, sections)
+    args = argv
+    if len(args) < 6:
+        print("Input all 5 arguments, current temp and brightness, as well as target time, temp and brightness.")
+        return
+    currentTemp, currentBrightness = int(args[1]), float(args[2])
+    targetTime, targetTemp, targetBrightness = args[3], int(args[4]), float(args[5])
 
-def parseJson(path: str):
-    try:
-        f = open(path)
-        data = json.load(f)
-    except Exception as e:
-        print(f'Failed to load json file {path}.')
+    if not all([currentTemp, currentBrightness, targetTemp, targetBrightness]):
+        print("Input all 5 arguments, current temp and brightness, as well as target time, temp and brightness.")
         return
 
-    # get each section, put into array, each contains time as actual time, color and brightness
-    sections = []
+    print("Calculating how many changes needed to hit target...")
+    changesAmount = calculateChangesRequired(targetTime)
+    tempChangePerIter = (int(targetTemp) - int(currentTemp)) / (changesAmount)
+    brightnessChangePerIter = (float(targetBrightness) - float(currentBrightness)) / (changesAmount)
+    print("Changing temp and brightness...")
+    try:
+        changeTempAndBrightness(
+            changesAmount,
+            currentTemp,
+            currentBrightness,
+            tempChangePerIter,
+            brightnessChangePerIter
+        )
+    except Exception as e:
+        print(e)
+    finally:
+        # Do one final change to target value
+        # because we're too inaccurate in calcs
+        # and will miss it
+        redshift(targetTemp, targetBrightness)
 
-    # Check how to read from json when you have more objects, for text config this is pointless
-    for key in data:
-        sections.append([data[key]['time'], data[key]['color'], data[key]['brightness']])
-    f.close()
+def calculateChangesRequired(targetTime: str):
+    currentTime = getCurrentTime()
+    if len(targetTime.split(":")) < 3:
+        targetTime += ":0"
+    parsedTargetTime = datetime.strptime(targetTime, "%H:%M:%S")
 
-    return sections
+    return round(((parsedTargetTime - currentTime)).total_seconds() * BLEND_TIME)
 
 def getCurrentTime():
     timeNow = datetime.now()
-    formatedTime = timeNow.strftime("%H:%M")
+    formatedTime = timeNow.strftime("%H:%M:%S")
 
-    return formatedTime
+    return datetime.strptime(formatedTime, "%H:%M:%S")
 
-def changeTempAndBrightness(currentTime, sections):
-    print(f"Current time {currentTime}")
-    beginningOfRange, endOfRange = pickCurrentTimeRange(currentTime, sections)
-    # TODO: Calculate change to do, based on settings,
-    # how long before the time, assume 5 minutes for testing
-    # Then, incrementally change temp and brightness
-    # until reached, then sleep until next target time
-    temperature = sections[endOfRange][1]
-    brightness = sections[endOfRange][2]
-    redshift(temperature, brightness)
-
-def pickCurrentTimeRange(currentTime, sections):
-    for section in range(len(sections)):
-        nextSection = section + 1 if (section + 1) < len(sections) else -1
-        if currentTime > sections[section][0]:
-            print("Beginning of range in the future")
-            continue
-        if currentTime > sections[nextSection][0]:
-            print("Ending of range in the past or current")
-            continue
-        print(f'Picked {sections[section][0]} and {sections[nextSection][0]}')
-        return section, nextSection
-    raise Exception("No matching time range found")
-
-def calculateChangeInTargetTempAndBrightnessToCurrentPerBlendFrame(targetTemp, targetBrightness, currentTemp, currentBrightness):
-    tempDifferencePerFrame = round((targetTemp - currentTemp) / BLEND_TIME)
-    brightDifferencePerFrame = round((targetBrightness - currentBrightness) / BLEND_TIME, 2)
-
-    return tempDifferencePerFrame, brightDifferencePerFrame
+def changeTempAndBrightness(changesAmount, currentTemp, currentBrightness, tempChange, brightnessChange):
+    for _ in range(changesAmount):
+        currentTemp += tempChange
+        currentBrightness += brightnessChange
+        if _ % BLEND_TIME == 0:
+            print(f"Changing to {currentTemp} {currentBrightness}")
+        redshift(currentTemp, currentBrightness)
+        # fps to ms per frame to seconds
+        time.sleep((BLEND_TIME/SECOND)/SECOND)
 
 def redshift(temp, brightness):
-    print(f"Changing to {temp} {brightness}")
+    if temp < 1000 or temp > 25000:
+        raise Exception(f'Temperature not in range 1000, 25000 got: {temp}')
+    if brightness < 0 or brightness > 1.0:
+        raise Exception(f'Brightness not in range 0 1, got: {brightness}')
     try:
         system(f'redshift -P -O {temp} -b {brightness}')
     except Exception as e:
